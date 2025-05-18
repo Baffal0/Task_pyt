@@ -1,0 +1,151 @@
+import re
+import requests
+import numpy as np
+from scipy.special import spherical_jn, spherical_yn
+import matplotlib.pyplot as plt
+from typing import Tuple
+
+
+class TaskDownloader:
+
+    def __init__(self, url: str, variant: int):
+        self.url = url
+        self.variant = variant
+
+    def download_task(self) -> str:
+        try:
+            response = requests.get(self.url)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            raise Exception(f"Ошибка при загрузке файла: {e}")
+
+    def parse_task(self, text: str) -> Tuple[float, float, float]:
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+        header_line = None
+        for i, line in enumerate(lines):
+            if any(word in line.lower() for word in ['вариант', 'd', 'fmin', 'fmax']):
+                header_line = i
+                break
+
+        if header_line is None:
+            raise ValueError("Не удалось найти строку с заголовками в файле задания")
+
+        for line in lines[header_line + 1:]:
+            parts = re.split(r'\s+', line.strip())
+            try:
+                current_variant = int(float(parts[0]))
+                if current_variant == self.variant:
+                    # Извлекаем параметры
+                    D = float(parts[1])
+                    fmin = float(parts[2])
+                    fmax = float(parts[3])
+                    return D, fmin, fmax
+            except (ValueError, IndexError):
+                continue
+
+        raise ValueError(f"Не удалось найти данные для варианта {self.variant}")
+
+
+class RCSCalculator:
+
+    def __init__(self, D: float):
+        self.r = D / 2  # радиус сферы
+
+    def calculate_rcs(self, frequencies: np.ndarray, n_terms: int = 20) -> np.ndarray:
+        rcs_values = np.zeros_like(frequencies, dtype=np.float64)
+
+        for i, f in enumerate(frequencies):
+            wavelength = 3e8 / f
+            k = 2 * np.pi / wavelength
+            kr = k * self.r
+
+            sum_term = 0.0 + 0.0j
+            for n in range(1, n_terms + 1):
+                # Сферические функции Бесселя
+                jn = spherical_jn(n, kr)
+                jn_minus_1 = spherical_jn(n - 1, kr)
+                yn = spherical_yn(n, kr)
+
+                # Сферическая функция Ханкеля (третьего рода)
+                hn = jn + 1j * yn
+                hn_minus_1 = spherical_jn(n - 1, kr) + 1j * spherical_yn(n - 1, kr)
+
+                # Коэффициенты an и bn
+                an = jn / hn
+                numerator_bn = kr * jn_minus_1 - n * jn
+                denominator_bn = kr * hn_minus_1 - n * hn
+                bn = numerator_bn / denominator_bn
+
+                term = (-1) ** n * (n + 0.5) * (bn - an)
+                sum_term += term
+
+            rcs = (wavelength ** 2 / np.pi) * np.abs(sum_term) ** 2
+            rcs_values[i] = rcs
+
+        return rcs_values
+
+
+class ResultSaver:
+    @staticmethod
+    def save_to_csv(filename: str, frequencies: np.ndarray, rcs_values: np.ndarray):
+        """Сохраняет результаты в CSV файл"""
+        with open(filename, 'w') as f:
+            f.write("No,Frequency (Hz),RCS (m^2)\n")
+            for i, (freq, rcs) in enumerate(zip(frequencies, rcs_values), start=1):
+                f.write(f"{i},{freq:.6e},{rcs:.6e}\n")
+
+
+class RCSPlotter:
+
+    @staticmethod
+    def plot_rcs(frequencies: np.ndarray, rcs_values: np.ndarray):
+        plt.figure(figsize=(10, 6))
+        plt.plot(frequencies, rcs_values)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('RCS (m²)')
+        plt.title('RCS of a Perfectly Conducting Sphere')
+        plt.grid(True, which="both", ls="-")
+        plt.show()
+
+
+def main():
+    try:
+        variant = 1
+        url = "https://jenyay.net/uploads/Student/Modelling/task_rcs_02.txt"
+        n_points = 100
+
+        print(f"Пытаемся получить данные для варианта {variant}...")
+
+
+        downloader = TaskDownloader(url, variant)
+        task_text = downloader.download_task()
+        D, fmin, fmax = downloader.parse_task(task_text)
+        print(f"Параметры для варианта {variant}: D={D} m, fmin={fmin} Hz, fmax={fmax} Hz")
+
+
+        frequencies = np.logspace(np.log10(fmin), np.log10(fmax), n_points)
+        rcs_calculator = RCSCalculator(D)
+        rcs_values = rcs_calculator.calculate_rcs(frequencies)
+
+
+        csv_filename = f"rcs_variant_{variant}.csv"
+        ResultSaver.save_to_csv(csv_filename, frequencies, rcs_values)
+        print(f"Результаты сохранены в файл {csv_filename}")
+
+
+        RCSPlotter.plot_rcs(frequencies, rcs_values)
+
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+        print("Попробуйте:")
+        print("1. Проверить номер вашего варианта")
+        print("2. Проверить подключение к интернету")
+        print("3. Проверить формат данных в файле задания")
+
+
+if __name__ == "__main__":
+    main()
