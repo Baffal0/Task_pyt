@@ -1,38 +1,40 @@
 import os
-import json
-import math
+import numpy as np
 import matplotlib.pyplot as plt
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
-def f(x, A=0.0):
-    numerator = math.sin(x**2 - A**2)**2 - 0.5
-    denominator = abs(1 + 0.001 * (x**2 + A**2))
-    return 0.5 + numerator / denominator
+A = 9.66459
+
+x_values = np.linspace(-10, 10, 1000)  
+
+y_values = -np.abs(np.sin(x_values) * np.cos(A) * np.exp(np.abs(1 - np.sqrt(x_values**2 + A**2) / np.pi)))
+
+root = ET.Element("data")
+xdata = ET.SubElement(root, "xdata")
+ydata = ET.SubElement(root, "ydata")
+
+for x, y in zip(x_values, y_values):
+    ET.SubElement(xdata, "x").text = f"{x:.6f}"
+    ET.SubElement(ydata, "y").text = f"{y:.6f}"
 
 results_dir = "results"
 os.makedirs(results_dir, exist_ok=True)
 
-data = []
-x_values = [x * 0.5 for x in range(-20, 21)]  # Из условия x от -10 до 10. Шаг - 0.5
-for x in x_values:
-    y = f(x, A=0)  # A=0 из условия
-    data.append({"x": x, "y": y})
+tree = ET.ElementTree(root)
+output_path = os.path.join(results_dir, "function_results.xml")
+xml_str = ET.tostring(root, encoding="utf-8")
+parsed = minidom.parseString(xml_str)
+pretty_xml_as_str = parsed.toprettyxml(indent="    ")
 
-output_file = os.path.join(results_dir, "function_results_A0.json")
-with open(output_file, "w", encoding="utf-8") as f_out:
-    json.dump({"data": data}, f_out, indent=4)
+with open(output_path, "w", encoding="utf-8") as f:
+    f.write(pretty_xml_as_str)
 
-print(f"Результаты сохранены в файл: {output_file}")
-
-plt.figure(figsize=(10, 6))
-plt.plot(x_values, [d["y"] for d in data], label="f(x) при A=0", color="red")
-plt.title("График функции f(x) = 0.5 + sin²(x²) / (1 + 0.001x²)")
+plt.plot(x_values, y_values, label="f(x)", color='blue')
+plt.title("График функции f(x)")
 plt.xlabel("x")
 plt.ylabel("f(x)")
 plt.grid(True)
 plt.legend()
-
-plot_file = os.path.join(results_dir, "function_plot_A0.png")
-plt.savefig(plot_file)
-print(f"График сохранён в файл: {plot_file}")
-
+plt.tight_layout()
 plt.show()
