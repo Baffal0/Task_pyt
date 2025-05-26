@@ -19,7 +19,7 @@ def parse_xml(file_path):
 
 def main():
     parser = argparse.ArgumentParser(description="График функции из XML-файла")
-    parser.add_argument("filename", type=str, help="Имя XML-файла (в папке 'results')")
+    parser.add_argument("filepath", type=str, help="Полный путь к XML-файлу")
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--grid", action="store_true", help="Включить сетку на графике")
@@ -27,8 +27,7 @@ def main():
 
     args = parser.parse_args()
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(script_dir, "results", args.filename)
+    file_path = args.filepath
 
     if not os.path.isfile(file_path):
         print(f"Файл не найден: {file_path}")
@@ -41,10 +40,16 @@ def main():
     plt.xlabel("x")
     plt.ylabel("f(x)")
     plt.legend()
-    plt.grid(args.grid)  # по умолчанию False
+    plt.grid(args.grid)  
 
     plt.tight_layout()
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+
 
 
 if __name__ == "__main__":
