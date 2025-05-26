@@ -103,8 +103,6 @@ class RCSPlotter:
     def plot_rcs(frequencies: np.ndarray, rcs_values: np.ndarray):
         plt.figure(figsize=(10, 6))
         plt.plot(frequencies, rcs_values)
-        plt.xscale('log')
-        plt.yscale('log')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('RCS (m²)')
         plt.title('RCS of a Perfectly Conducting Sphere')
